@@ -38,10 +38,10 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Proj_DX12WindowsMessageLoop.cpp">
+    <ClCompile Include="myDirectX.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="myDirectX.cpp">
+    <ClCompile Include="Proj_Dx12App.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
