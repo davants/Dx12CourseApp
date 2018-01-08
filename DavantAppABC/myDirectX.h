@@ -26,8 +26,10 @@ private:
 	IDXGIFactory4 * mpDxgiFactory = nullptr;
 	ID3D12Device * mpD3dDevice = nullptr;
 	IDXGIAdapter1 * mpHardwareAdapter = nullptr;
+	ID3D12CommandQueue * mpID3D12CommandQueue = nullptr;
 
 	HRESULT InitializeFactoryDeviceAndHardware(void);
 	HRESULT myDirectX::GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** ppAdapter);
+	HRESULT myDirectX::InitializeCommandObjects(void);
 };
 

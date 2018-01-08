@@ -9,6 +9,25 @@ myDirectX::myDirectX()
 
 myDirectX::~myDirectX()
 {
+	if (mpDxgiFactory != nullptr)
+	{
+		mpDxgiFactory->Release();
+	}
+
+	if (mpHardwareAdapter != nullptr)
+	{
+		mpHardwareAdapter->Release();
+	}
+
+	if (mpD3dDevice != nullptr)
+	{
+		mpD3dDevice->Release();
+	}
+
+	if (mpID3D12CommandQueue != nullptr)
+	{
+		mpID3D12CommandQueue->Release();
+	}
 }
 
 IDXGIFactory4 * myDirectX::getDxgiFactory(void)
@@ -30,6 +49,11 @@ HRESULT myDirectX::Initialize(void)
 {
 	HRESULT hr;
 	hr = InitializeFactoryDeviceAndHardware();
+
+	if (hr == S_OK)
+	{
+		hr = InitializeCommandObjects();
+	}
 
 	return hr;
 }
@@ -56,9 +80,9 @@ HRESULT myDirectX::InitializeFactoryDeviceAndHardware(void)
 			DXGI_ADAPTER_DESC1 vDXGI_ADAPTER_DESC1;
 			mpHardwareAdapter->GetDesc1(&vDXGI_ADAPTER_DESC1);
 
-			wstring vDedicatedVideoMemory = std::to_wstring(vDXGI_ADAPTER_DESC1.DedicatedVideoMemory);
-			wstring vOutputMessage = L"Success - ID3D12Device was created and the video card memory is " + vDedicatedVideoMemory;
-			MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
+			//wstring vDedicatedVideoMemory = std::to_wstring(vDXGI_ADAPTER_DESC1.DedicatedVideoMemory);
+			//wstring vOutputMessage = L"Success - ID3D12Device was created and the video card memory is " + vDedicatedVideoMemory;
+			//MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
 		}
 		else
 		{
@@ -147,6 +171,29 @@ HRESULT myDirectX::GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** p
 			pAdapterTEMP->Release();
 		}
 	}
+
+	return vResult;
+}
+
+HRESULT myDirectX::InitializeCommandObjects(void)
+{
+	HRESULT vResult = E_FAIL;
+
+	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	vResult = mpD3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mpID3D12CommandQueue));
+	
+	if (vResult == S_OK)
+	{
+		wstring vOutputMessage = L"Success - ID3D12CommandQueue was created";
+		MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
+	}
+	else
+	{
+		MessageBox(nullptr, L"FAIL, ID3D12CommandQueue was not created!", L"Working, but we have a problem!", MB_OK);
+	}
+
 
 	return vResult;
 }
