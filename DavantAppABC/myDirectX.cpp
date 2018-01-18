@@ -28,6 +28,18 @@ myDirectX::~myDirectX()
 	{
 		mpID3D12CommandQueue->Release();
 	}
+
+	if (mpID3D12CommandAllocator != nullptr)
+	{
+		mpID3D12CommandAllocator->Release();
+	}
+
+	if (mpID3D12GraphicsCommandList != nullptr)
+	{
+		mpID3D12GraphicsCommandList->Release();
+	}
+
+
 }
 
 IDXGIFactory4 * myDirectX::getDxgiFactory(void)
@@ -184,16 +196,38 @@ HRESULT myDirectX::InitializeCommandObjects(void)
 	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	vResult = mpD3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mpID3D12CommandQueue));
 	
-	if (vResult == S_OK)
-	{
-		wstring vOutputMessage = L"Success - ID3D12CommandQueue was created";
-		MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
-	}
-	else
+	if(vResult != S_OK)
 	{
 		MessageBox(nullptr, L"FAIL, ID3D12CommandQueue was not created!", L"Working, but we have a problem!", MB_OK);
+		return vResult;
+	}
+	
+	// Now the command allocator
+	vResult = mpD3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&mpID3D12CommandAllocator));
+
+	if (vResult != S_OK)
+	{
+		MessageBox(nullptr, L"FAIL, Command Allocator was not created!", L"Working, but we have a problem!", MB_OK);
+		return vResult;
 	}
 
+	// Now the command list
+	vResult = mpD3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mpID3D12CommandAllocator, nullptr, 
+		IID_PPV_ARGS(&mpID3D12GraphicsCommandList));
+		
+	if (vResult != S_OK)
+	{
+		MessageBox(nullptr, L"FAIL, Command List was not created!", L"Working, but we have a problem!", MB_OK);
+		return vResult;
+	}
+
+	mpID3D12GraphicsCommandList->Close();	
+
+	if (vResult == S_OK)
+	{
+		wstring vOutputMessage = L"Success - Command Objects were created";
+		MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
+	}
 
 	return vResult;
 }
