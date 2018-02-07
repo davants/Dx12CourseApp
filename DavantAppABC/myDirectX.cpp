@@ -39,6 +39,11 @@ myDirectX::~myDirectX()
 		mpID3D12GraphicsCommandList->Release();
 	}
 
+	if (mpIDXGISwapChain != nullptr)
+	{
+		mpIDXGISwapChain->Release();
+	}
+
 
 }
 
@@ -57,14 +62,31 @@ IDXGIAdapter1 * myDirectX::getHardwareAdapter(void)
 	return mpHardwareAdapter;
 }
 
-HRESULT myDirectX::Initialize(void)
+int myDirectX::getRenderTargetWidth(void)
 {
+	return mRenderTargetWidth;
+}
+
+int myDirectX::getRenderTargetHeight(void)
+{
+	return mRenderTargetHeight;
+}
+
+HRESULT myDirectX::Initialize(HWND vhMainWnd)
+{
+	mhMainWnd = vhMainWnd;
+
 	HRESULT hr;
 	hr = InitializeFactoryDeviceAndHardware();
 
 	if (hr == S_OK)
 	{
 		hr = InitializeCommandObjects();
+	}
+
+	if (hr == S_OK)
+	{
+		hr = InitializeSwapChain();
 	}
 
 	return hr;
@@ -95,6 +117,33 @@ HRESULT myDirectX::InitializeFactoryDeviceAndHardware(void)
 			//wstring vDedicatedVideoMemory = std::to_wstring(vDXGI_ADAPTER_DESC1.DedicatedVideoMemory);
 			//wstring vOutputMessage = L"Success - ID3D12Device was created and the video card memory is " + vDedicatedVideoMemory;
 			//MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
+
+
+		
+
+			// Check 4X MSAA quality support for our back buffer format.
+			// All Direct3D 11 capable devices support 4X MSAA for all render 
+			// target formats, so we only need to check quality support.
+
+			D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+			msQualityLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			msQualityLevels.SampleCount = 1;
+			msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+			msQualityLevels.NumQualityLevels = 0;
+			mpD3dDevice->CheckFeatureSupport(
+				D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+				&msQualityLevels,
+				sizeof(msQualityLevels));
+
+			m4xMsaaQuality = msQualityLevels.NumQualityLevels;
+			
+			// https://msdn.microsoft.com/en-us/library/windows/desktop/bb173072(v=vs.85).aspx
+			// "The valid range is between zero and one less than the level returned by ..."
+			if (m4xMsaaQuality > 0)
+			{
+				m4xMsaaQuality--;
+			}
+
 		}
 		else
 		{
@@ -148,6 +197,7 @@ HRESULT myDirectX::GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** p
 			wstring s = L"   Found One! This video card meets the Level 11_0 features!";
 			OutputDebugString(s.c_str());
 
+			
 
 			// Another video card may have passed the DX feature requirement, so check if this one has more memory.
 			// If it does have more memory then call Release() of the smaller one we don't want anymore.
@@ -163,12 +213,21 @@ HRESULT myDirectX::GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** p
 				// Update the video memory of our local variable vMemory so we can check against other cards.
 				vMemory = vDXGI_ADAPTER_DESC1.DedicatedVideoMemory;
 
-
-
-
-
+				
 				// Set the adapter parameter, dereference it so we are updating the client's variable.
 				*ppAdapter = pAdapterTEMP;
+
+
+
+
+			
+
+
+
+
+
+
+
 				vResult = S_OK;
 			}
 			else
@@ -223,11 +282,82 @@ HRESULT myDirectX::InitializeCommandObjects(void)
 
 	mpID3D12GraphicsCommandList->Close();	
 
-	if (vResult == S_OK)
+	//if (vResult == S_OK)
+	//{
+	//	wstring vOutputMessage = L"Success - Command Objects were created";
+	//	MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
+	//}
+
+	return vResult;
+}
+
+HRESULT myDirectX::InitializeSwapChain(void)
+{
+	DXGI_SWAP_CHAIN_DESC sd;
+
+	// Render target width and height. The is the size of our screen which should match the window we created.
+	// We will set them our new member variables. The window also uses these same values so both will
+	// be the same.
+	sd.BufferDesc.Width = mRenderTargetWidth;
+	sd.BufferDesc.Height = mRenderTargetHeight;
+
+	// This is the refresh rate of the images we want on the screen. 	
+	sd.BufferDesc.RefreshRate.Numerator = 60;
+	sd.BufferDesc.RefreshRate.Denominator = 1;
+
+	// The swap chain will create the buffers and we need to specify what type of image format we want.
+	// We will use standard Red, Green, Blue, Alpha. (Alpha can be used for transparency).
+	// Notice the "R8", "G8", "B8". This means each pixel will hold an 8 bits (one byte) for each color plus alpha.
+	// This means that each pixel will be 4 bytes or 32 bits.
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+	// The next 2 we will not cover, but they need to be set.
+	sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+	sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+
+	// Sampling is covered later. Basically, it says to look at other pixels around each pixel and do a blend 
+	// to make things smoother.
+	sd.SampleDesc.Count = 1;
+	sd.SampleDesc.Quality = m4xMsaaQuality; // This was already reduced by one.
+
+											// What are these buffers used for?  Render targets.
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+
+	// We want 2 buffers; front and back.
+	sd.BufferCount = 2;
+
+	// Set the Window's window to draw to.
+	sd.OutputWindow = mhMainWnd;
+
+	// Not full screen.
+	sd.Windowed = true;
+
+	// After we have used a buffer, throw away the data.
+	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+
+	// Misc setting.
+	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+	HRESULT hr;
+
+	// Now create the swap chain using the struct we just filled out.
+	hr = mpDxgiFactory->CreateSwapChain(
+		mpID3D12CommandQueue,
+		&sd,
+		&mpIDXGISwapChain);
+
+	if (hr != S_OK)
 	{
-		wstring vOutputMessage = L"Success - Command Objects were created";
+		throw(new exception("error creating swap chain"));
+	}
+
+	if (hr == S_OK)
+	{
+		wstring vOutputMessage = L"Success - The Swap Chain was Created!";
 		MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
 	}
 
-	return vResult;
+
+	return hr;
+
 }

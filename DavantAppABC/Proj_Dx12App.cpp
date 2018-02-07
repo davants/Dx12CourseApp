@@ -31,7 +31,6 @@ LRESULT CALLBACK WindowProc(HWND hWnd,
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	HRESULT hr;
-	hr = gMyDirectX.Initialize();
 
 	// the handle for the window, filled by a function
 	HWND hWnd;
@@ -54,7 +53,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 	RegisterClassEx(&wc);
 
 	// calculate the size of the client area
-	RECT wr = { 0, 0, 500, 400 };    // set the size, but not the position
+	RECT wr = { 0, 0, gMyDirectX.getRenderTargetWidth(), gMyDirectX.getRenderTargetHeight() };    // set the size, but not the position
 	AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);    // adjust the size
 
 														  // create the window and use the result as the handle
@@ -73,6 +72,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 				  // display the window on the screen
 	ShowWindow(hWnd, showCmd);
+
+
+	hr = gMyDirectX.Initialize(hWnd);
+
+
+
 
 	// enter the main loop:
 
