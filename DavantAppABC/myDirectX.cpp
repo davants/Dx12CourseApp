@@ -44,6 +44,34 @@ myDirectX::~myDirectX()
 		mpIDXGISwapChain->Release();
 	}
 
+	if (mpID3D12Fence != nullptr)
+	{
+		mpID3D12Fence->Release();
+	}
+
+	if (mpRtvID3D12DescriptorHeap != nullptr)
+	{
+		mpRtvID3D12DescriptorHeap->Release();
+	}
+	
+	if (mpDsvID3D12DescriptorHeap != nullptr)
+	{
+		mpDsvID3D12DescriptorHeap->Release();
+	}
+
+	for (int i = 0; i < 2; i++)
+	{
+		if (mpSwapChainBufferList[i] != nullptr)
+		{
+			mpSwapChainBufferList[i]->Release();
+		}
+	}
+
+	if (mpDepthStencilBuffer != nullptr)
+	{
+		mpDepthStencilBuffer->Release();
+	}
+
 
 }
 
@@ -89,6 +117,20 @@ HRESULT myDirectX::Initialize(HWND vhMainWnd)
 		hr = InitializeSwapChain();
 	}
 
+	if (hr == S_OK)
+	{
+		hr = InitializeFence();
+	}
+
+	InitializeDescriptorSizes();
+
+	if (hr == S_OK)
+	{
+		hr = InitializeRtvAndDsvDescriptorHeaps();
+	}
+
+
+
 	return hr;
 }
 
@@ -130,7 +172,7 @@ HRESULT myDirectX::InitializeFactoryDeviceAndHardware(void)
 			msQualityLevels.SampleCount = 1;
 			msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
 			msQualityLevels.NumQualityLevels = 0;
-			mpD3dDevice->CheckFeatureSupport(
+			HRESULT vFeatureResult = mpD3dDevice->CheckFeatureSupport(
 				D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
 				&msQualityLevels,
 				sizeof(msQualityLevels));
@@ -351,13 +393,86 @@ HRESULT myDirectX::InitializeSwapChain(void)
 		throw(new exception("error creating swap chain"));
 	}
 
-	if (hr == S_OK)
-	{
-		wstring vOutputMessage = L"Success - The Swap Chain was Created!";
-		MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
-	}
+	//if (hr == S_OK)
+	//{
+	//	wstring vOutputMessage = L"Success - The Swap Chain was Created!";
+	//	MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
+	//}
 
 
 	return hr;
 
 }
+
+HRESULT myDirectX::InitializeFence(void)
+{
+	HRESULT vResult = mpD3dDevice->CreateFence(
+		0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(&mpID3D12Fence));
+
+	return vResult;
+}
+
+void myDirectX::InitializeDescriptorSizes(void)
+{
+	mRtvDescriptorSize = mpD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	mDsvDescriptorSize = mpD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	mCbvSrvUavDescriptorSize = mpD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	
+}
+
+HRESULT myDirectX::InitializeRtvAndDsvDescriptorHeaps(void)
+{
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+	rtvHeapDesc.NumDescriptors = 2;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+	HRESULT vResult = mpD3dDevice->CreateDescriptorHeap(
+		&rtvHeapDesc, IID_PPV_ARGS(&mpRtvID3D12DescriptorHeap));
+
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+	vResult = mpD3dDevice->CreateDescriptorHeap(
+		&dsvHeapDesc, IID_PPV_ARGS( &mpDsvID3D12DescriptorHeap));
+
+
+	if (vResult != S_OK)
+	{
+		throw(new exception("error creating descriptor heaps"));
+	}
+
+	if (vResult == S_OK)
+	{
+		wstring vOutputMessage = L"Success - The descriptor heaps were Created!";
+		MessageBox(nullptr, vOutputMessage.c_str(), L"Working!!", MB_OK);
+	}
+
+
+	return vResult;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE myDirectX::CurrentBackBufferView() const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
+		mpRtvID3D12DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+		mCurrBackBuffer,
+		mRtvDescriptorSize);
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE myDirectX::DepthStencilView() const
+{
+	return mpDsvID3D12DescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+}
+
+
+//ID3D12Resource* myDirectX::CurrentBackBuffer()const
+//{
+//	return mpSwapChainBufferList[mCurrBackBuffer];
+//	
+//}
