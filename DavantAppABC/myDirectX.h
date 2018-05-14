@@ -23,7 +23,10 @@ public:
 
 	HRESULT Initialize(HWND vhMainWnd);
 
+	void FlushCommandQueue();
 
+
+	void OnResize();
 
 private:
 	IDXGIFactory4 * mpDxgiFactory = nullptr;
@@ -66,8 +69,13 @@ private:
 	UINT mCbvSrvUavDescriptorSize = 0;
 
 	int mCurrBackBuffer = 0;
-	ID3D12Resource * mpSwapChainBufferList[2];
-	ID3D12Resource * mpDepthStencilBuffer;
+	// Views/Descriptors are pointers to other GPU resources.
+	// We will need 2 views of the render targets and 1 view for the depth stencil.
+	ID3D12Resource * mpSwapChainBufferViewList[2];
+	ID3D12Resource * mpDepthStencilBufferView;
+
+	UINT64 mCurrentFence = 0;
+
 
 };
 

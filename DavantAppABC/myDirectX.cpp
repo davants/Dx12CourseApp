@@ -61,15 +61,15 @@ myDirectX::~myDirectX()
 
 	for (int i = 0; i < 2; i++)
 	{
-		if (mpSwapChainBufferList[i] != nullptr)
+		if (mpSwapChainBufferViewList[i] != nullptr)
 		{
-			mpSwapChainBufferList[i]->Release();
+			mpSwapChainBufferViewList[i]->Release();
 		}
 	}
 
-	if (mpDepthStencilBuffer != nullptr)
+	if (mpDepthStencilBufferView != nullptr)
 	{
-		mpDepthStencilBuffer->Release();
+		mpDepthStencilBufferView->Release();
 	}
 
 
@@ -132,6 +132,103 @@ HRESULT myDirectX::Initialize(HWND vhMainWnd)
 
 
 	return hr;
+}
+
+void myDirectX::FlushCommandQueue()
+{
+	// Advance the fence number
+	mCurrentFence++;
+
+	// Give the fence, with the new number, to the command queue.
+	mpID3D12CommandQueue->Signal(mpID3D12Fence, mCurrentFence);
+
+	// We just added a command to the command queue.
+	// When the GPU runs this command, it will update the mpID3D12Fence with the new number.
+
+	// Check the number in the fence, maybe it already set it!  Probably not, but we will check.
+	if (mpID3D12Fence->GetCompletedValue() < mCurrentFence)
+	{
+		// The signal command has not been run yet... so wait for the signal.
+
+		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+
+		// Fire event when GPU hits current fence.  
+		HRESULT hr = mpID3D12Fence->SetEventOnCompletion(mCurrentFence, eventHandle);
+
+		// Wait until the GPU hits current fence event is fired.
+		WaitForSingleObject(eventHandle, INFINITE);
+		CloseHandle(eventHandle);
+
+	}
+
+}
+
+void myDirectX::OnResize()
+{
+	if (mpD3dDevice == nullptr)
+	{
+		return;
+	}
+	if (mpIDXGISwapChain == nullptr)
+	{
+		return;
+	}
+	if (mpID3D12CommandAllocator == nullptr)
+	{
+		return;
+	}
+
+	// Flush before changing any resources.
+	FlushCommandQueue();
+
+	mpID3D12GraphicsCommandList->Reset(mpID3D12CommandAllocator, nullptr);
+
+	// Release the previous resources we will be recreating.
+	for (int i = 0; i < 2; ++i)
+	{
+		mpSwapChainBufferViewList[i]->Release();
+	}
+
+	mpDepthStencilBufferView->Release();
+
+	// Resize the swap chain.
+	HRESULT hr = mpIDXGISwapChain->ResizeBuffers(
+		2, // front and back buffer
+		mRenderTargetWidth, mRenderTargetHeight,
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+
+	mCurrBackBuffer = 0;
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mpRtvID3D12DescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+	for (UINT i = 0; i < 2; i++)
+	{
+		mpIDXGISwapChain->GetBuffer(i, IID_PPV_ARGS(&mpSwapChainBufferViewList[i]));
+
+		mpD3dDevice->CreateRenderTargetView(mpSwapChainBufferViewList[i], nullptr, rtvHeapHandle);
+		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
+	}
+
+
+	// Now for the Depth Stencil resource.
+
+	// Fill out a struct that will tell the GPU what we want it to create.
+	D3D12_RESOURCE_DESC depthStencilDesc;
+	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthStencilDesc.Alignment = 0;
+	depthStencilDesc.Width = mRenderTargetWidth;
+	depthStencilDesc.Height = mRenderTargetHeight;
+	depthStencilDesc.DepthOrArraySize = 1;
+	depthStencilDesc.MipLevels = 1;
+	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthStencilDesc.SampleDesc.Count = 1; // book has m4xMsaaQuality ? 4 : 1;
+	depthStencilDesc.SampleDesc.Quality = m4xMsaaQuality;
+	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+
+
 }
 
 HRESULT myDirectX::InitializeFactoryDeviceAndHardware(void)
